@@ -26,18 +26,22 @@ def left_canonicalize(tt: TTTensor, backend: BackendInterface) -> TTTensor:
         core = cores[k]
         left_rank, mode_size, right_rank = core.shape
         matrix = backend.reshape(core, (left_rank * mode_size, right_rank))
-        U, S, Vt = backend.svd(matrix, full_matrices=False)
 
-        rank = _numerical_rank(S)
-        if rank < 1:
-            rank = 1
+        if left_rank * mode_size >= right_rank:
+            Q, R = backend.qr(matrix)
+            rank = right_rank
+            cores[k] = backend.reshape(Q, (left_rank, mode_size, rank))
+            transfer = R
+        else:
+            U, S, Vt = backend.svd(matrix, full_matrices=False)
+            rank = S.shape[0]
 
-        U_part = _truncate_columns(U, rank, backend)
-        S_part = _truncate_vector(S, rank, backend)
-        Vt_part = _truncate_rows(Vt, rank, backend)
+            U_part = _truncate_columns(U, rank, backend)
+            S_part = _truncate_vector(S, rank, backend)
+            Vt_part = _truncate_rows(Vt, rank, backend)
 
-        cores[k] = backend.reshape(U_part, (left_rank, mode_size, rank))
-        transfer = _multiply_diag_matrix(S_part, Vt_part, rank, backend)
+            cores[k] = backend.reshape(U_part, (left_rank, mode_size, rank))
+            transfer = _multiply_diag_matrix(S_part, Vt_part, rank, backend)
 
         next_core = cores[k + 1]
         _, next_mode_size, next_right_rank = next_core.shape
@@ -72,18 +76,23 @@ def right_canonicalize(tt: TTTensor, backend: BackendInterface) -> TTTensor:
         core = cores[k]
         left_rank, mode_size, right_rank = core.shape
         matrix = backend.reshape(core, (left_rank, mode_size * right_rank))
-        U, S, Vt = backend.svd(matrix, full_matrices=False)
 
-        rank = _numerical_rank(S)
-        if rank < 1:
-            rank = 1
+        if mode_size * right_rank >= left_rank:
+            Q, R = backend.qr(backend.transpose(matrix))
+            Q_t = backend.transpose(Q)
+            rank = left_rank
+            cores[k] = backend.reshape(Q_t, (rank, mode_size, right_rank))
+            transfer = backend.transpose(R)
+        else:
+            U, S, Vt = backend.svd(matrix, full_matrices=False)
+            rank = S.shape[0]
 
-        U_part = _truncate_columns(U, rank, backend)
-        S_part = _truncate_vector(S, rank, backend)
-        Vt_part = _truncate_rows(Vt, rank, backend)
+            U_part = _truncate_columns(U, rank, backend)
+            S_part = _truncate_vector(S, rank, backend)
+            Vt_part = _truncate_rows(Vt, rank, backend)
 
-        cores[k] = backend.reshape(Vt_part, (rank, mode_size, right_rank))
-        transfer = _multiply_columns_by_diag(U_part, S_part, backend)
+            cores[k] = backend.reshape(Vt_part, (rank, mode_size, right_rank))
+            transfer = _multiply_columns_by_diag(U_part, S_part, backend)
 
         prev_core = cores[k - 1]
         prev_left_rank, prev_mode_size, _ = prev_core.shape

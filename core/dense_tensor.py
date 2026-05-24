@@ -124,11 +124,11 @@ class DenseTensor:
         Args:
             nested: список
         """
-        if not isinstance(nested, list):
+        if not isinstance(nested, (list, tuple)):
             raise TypeError("nested должен быть списком")
 
         def find_shape(value):
-            if not isinstance(value, list):
+            if not isinstance(value, (list, tuple)):
                 return ()
             if len(value) == 0:
                 raise ValueError("пустые списки не задают тензор")
@@ -140,7 +140,7 @@ class DenseTensor:
             return (len(value),) + first_shape
 
         def add_values(value, result):
-            if isinstance(value, list):
+            if isinstance(value, (list, tuple)):
                 for item in value:
                     add_values(item, result)
             else:

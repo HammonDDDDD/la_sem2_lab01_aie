@@ -220,10 +220,14 @@ def tt_diff_norm(
     if tt1.shape != tt2.shape:
         raise ValueError("формы TT-тензоров не совпадают")
 
-    value = tt_dot(tt1, tt1, backend)
-    value += tt_dot(tt2, tt2, backend)
-    value -= 2.0 * tt_dot(tt1, tt2, backend)
+    norm1 = tt_dot(tt1, tt1, backend)
+    norm2 = tt_dot(tt2, tt2, backend)
+    mixed = tt_dot(tt1, tt2, backend)
+    value = norm1 + norm2 - 2.0 * mixed
+    scale = max(abs(norm1), abs(norm2), abs(mixed), 1.0)
 
+    if abs(value) <= 1e-14 * scale:
+        value = 0.0
     if value < 0:
         value = 0.0
 

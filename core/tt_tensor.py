@@ -50,8 +50,6 @@ class TTTensor:
             raise ValueError("список ядер не должен быть пустым")
 
         for core in cores:
-            if not isinstance(core, DenseTensor):
-                raise TypeError("каждое ядро должно быть DenseTensor")
             if core.ndim != 3:
                 raise ValueError("каждое ядро должно быть трехмерным")
 
