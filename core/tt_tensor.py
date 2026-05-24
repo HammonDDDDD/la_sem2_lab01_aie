@@ -169,7 +169,8 @@ class TTTensor:
 
     def full(self) -> DenseTensor:
         """Возвращает полный DenseTensor из его TT-формата."""
-        result = DenseTensor.zeros(self.shape)
+        tensor_class = self.cores[0].__class__
+        result = tensor_class.zeros(self.shape)
         for flat_index in range(result.size):
             index = flat_to_multi_index(flat_index, self.shape)
             result.data[flat_index] = self.get_element(index)
