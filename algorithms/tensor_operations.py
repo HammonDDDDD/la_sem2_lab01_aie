@@ -39,7 +39,50 @@ def tt_add(
         tt1, tt2: TTTensor с одинаковым shape
         backend:  интерфейс backend
     """
-    pass
+    if tt1.shape != tt2.shape:
+        raise ValueError("формы TT-тензоров не совпадают")
+
+    if tt1.order == 1:
+        core = backend.add(tt1.cores[0], tt2.cores[0])
+        return TTTensor([core])
+
+    cores = []
+
+    for k in range(tt1.order):
+        core1 = tt1.cores[k]
+        core2 = tt2.cores[k]
+        left1, mode_size, right1 = core1.shape
+        left2, _, right2 = core2.shape
+
+        if k == 0:
+            new_core = backend.zeros((1, mode_size, right1 + right2))
+            for i in range(mode_size):
+                for b in range(right1):
+                    new_core[0, i, b] = core1[0, i, b]
+                for b in range(right2):
+                    new_core[0, i, right1 + b] = core2[0, i, b]
+        elif k == tt1.order - 1:
+            new_core = backend.zeros((left1 + left2, mode_size, 1))
+            for a in range(left1):
+                for i in range(mode_size):
+                    new_core[a, i, 0] = core1[a, i, 0]
+            for a in range(left2):
+                for i in range(mode_size):
+                    new_core[left1 + a, i, 0] = core2[a, i, 0]
+        else:
+            new_core = backend.zeros((left1 + left2, mode_size, right1 + right2))
+            for a in range(left1):
+                for i in range(mode_size):
+                    for b in range(right1):
+                        new_core[a, i, b] = core1[a, i, b]
+            for a in range(left2):
+                for i in range(mode_size):
+                    for b in range(right2):
+                        new_core[left1 + a, i, right1 + b] = core2[a, i, b]
+
+        cores.append(new_core)
+
+    return TTTensor(cores)
 
 
 def tt_scalar_mul(
@@ -56,7 +99,11 @@ def tt_scalar_mul(
         alpha:   число
         backend: интерфейс backend
     """
-    pass
+    cores = []
+    for core in tt.cores:
+        cores.append(backend.copy(core))
+    cores[0] = backend.scale(cores[0], alpha)
+    return TTTensor(cores)
 
 
 def tt_hadamard(
@@ -71,7 +118,31 @@ def tt_hadamard(
         tt1, tt2: TTTensor с одинаковым shape
         backend:  интерфейс backend
     """
-    pass
+    if tt1.shape != tt2.shape:
+        raise ValueError("формы TT-тензоров не совпадают")
+
+    cores = []
+    for k in range(tt1.order):
+        core1 = tt1.cores[k]
+        core2 = tt2.cores[k]
+        left1, mode_size, right1 = core1.shape
+        left2, _, right2 = core2.shape
+        new_core = backend.zeros((left1 * left2, mode_size, right1 * right2))
+
+        for a1 in range(left1):
+            for a2 in range(left2):
+                new_left = a1 * left2 + a2
+                for i in range(mode_size):
+                    for b1 in range(right1):
+                        for b2 in range(right2):
+                            new_right = b1 * right2 + b2
+                            new_core[new_left, i, new_right] = (
+                                core1[a1, i, b1] * core2[a2, i, b2]
+                            )
+
+        cores.append(new_core)
+
+    return TTTensor(cores)
 
 
 def tt_dot(
@@ -86,7 +157,34 @@ def tt_dot(
         tt1, tt2: TTTensor с одинаковым shape
         backend:  интерфейс backend
     """
-    pass
+    if tt1.shape != tt2.shape:
+        raise ValueError("формы TT-тензоров не совпадают")
+
+    current = backend.ones((1, 1))
+
+    for k in range(tt1.order):
+        core1 = tt1.cores[k]
+        core2 = tt2.cores[k]
+        left1, mode_size, right1 = core1.shape
+        left2, _, right2 = core2.shape
+        new_current = backend.zeros((right1, right2))
+
+        for b1 in range(right1):
+            for b2 in range(right2):
+                value = 0.0
+                for a1 in range(left1):
+                    for a2 in range(left2):
+                        for i in range(mode_size):
+                            value += (
+                                current[a1, a2]
+                                * core1[a1, i, b1]
+                                * core2[a2, i, b2]
+                            )
+                new_current[b1, b2] = value
+
+        current = new_current
+
+    return current[0, 0]
 
 
 def tt_norm(
@@ -100,7 +198,10 @@ def tt_norm(
         tt:      TTTensor
         backend: интерфейс backend
     """
-    pass
+    value = tt_dot(tt, tt, backend)
+    if value < 0:
+        value = 0.0
+    return math.sqrt(value)
 
 
 def tt_diff_norm(
@@ -116,4 +217,14 @@ def tt_diff_norm(
         tt1, tt2: TTTensor
         backend:  интерфейс backend
     """
-    pass
+    if tt1.shape != tt2.shape:
+        raise ValueError("формы TT-тензоров не совпадают")
+
+    value = tt_dot(tt1, tt1, backend)
+    value += tt_dot(tt2, tt2, backend)
+    value -= 2.0 * tt_dot(tt1, tt2, backend)
+
+    if value < 0:
+        value = 0.0
+
+    return math.sqrt(value)
